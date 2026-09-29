@@ -141,6 +141,7 @@ app.disable('x-powered-by');
 app.use(cookieParser());
 app.use(express.json({ limit: '30mb' }));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // ---- Public site ----
 app.get('/', (req, res) => {
