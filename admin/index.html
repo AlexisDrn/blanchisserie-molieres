@@ -378,6 +378,23 @@
   }
   .acard__actions{display:flex; gap:0.4rem; flex-shrink:0;}
 
+  /* ---------- Mentions légales ---------- */
+  .mentions-form{
+    background:var(--white);
+    border:1px solid var(--line-soft);
+    border-radius:var(--radius-md);
+    box-shadow:var(--shadow-card);
+    padding:1.4rem 1.5rem 1.5rem;
+    display:flex;
+    flex-direction:column;
+    gap:1.1rem;
+    max-width:52rem;
+  }
+  .mentions-form .field{margin-bottom:0;}
+  .mentions-form textarea{min-height:78px; resize:vertical; line-height:1.5;}
+  .mentions-form .field input[type="text"],
+  .mentions-form .field textarea{background:var(--cream);}
+
   /* ---------- Modal ---------- */
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(58,50,88,0.42); backdrop-filter:blur(3px);
@@ -499,6 +516,10 @@
           <span>Articles</span>
           <span class="nav-count" id="count-articles">0</span>
         </button>
+        <button class="nav-btn" data-tab="mentions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6M9 16h6M9 8h1"/><path d="M7 3h8l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
+          <span>Mentions légales</span>
+        </button>
       </nav>
       <div class="sidebar__footer">
         <button class="btn btn-publish" id="publish-btn">
@@ -550,6 +571,15 @@
           </div>
           <div class="article-admin-list" id="articles-list-admin"></div>
         </section>
+
+        <!-- MENTIONS LEGALES -->
+        <section class="tab-panel" id="tab-mentions">
+          <div class="panel-intro">
+            <h3>Mentions légales</h3>
+            <p>Modifiez les textes affichés dans l'onglet Mentions légales du site. Les liens sont possibles avec du HTML simple, par exemple <code>&lt;a href="https://exemple.fr"&gt;texte&lt;/a&gt;</code>. Un champ laissé vide reprend automatiquement le texte par défaut.</p>
+          </div>
+          <div class="mentions-form" id="mentions-form"></div>
+        </section>
       </div>
     </main>
   </div>
@@ -576,8 +606,39 @@
     gallery: [],
     tarifs: [],
     articles: [],
+    mentions: {},
     dirty: false
   };
+
+  // Reprend exactement les valeurs par défaut de server.js (MENTIONS_DEFAULTS) :
+  // sert à pré-remplir le formulaire tant que l'admin n'a jamais encore publié
+  // depuis cet onglet (content.json existant sans bloc "mentions").
+  var MENTIONS_DEFAULTS = {
+    editeur: 'Blanchisserie de Molières-sur-Cèze, exploitée par DOURNIN.<br>Représentante : Patricia Dournin, directrice de la publication.',
+    siege: '14 rue Louis Serre, 30410 Molières-sur-Cèze, France.',
+    contact: 'Tél. : 06 58 73 18 09<br>E-mail : contact@blanchisseriedemolieres.com',
+    immatriculation: 'SIRET : 421 721 408 00035',
+    fiscalite: 'TVA non applicable, <a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/" target="_blank" rel="noopener noreferrer">art. 293 B du CGI</a>.',
+    hebergement: 'Render Services, Inc., 525 Brannan Street Ste 300, San Francisco, CA 94107, États-Unis — legal@render.com — +1 415-319-8186.',
+    propriete: 'L\'ensemble des textes, illustrations originales et éléments graphiques de ce site sont la propriété de la Blanchisserie de Molières-sur-Cèze, sauf mention contraire. Toute reproduction sans autorisation est interdite.',
+    credits: 'Les illustrations, pictogrammes et éléments graphiques présents sur ce site ont été réalisés ou sélectionnés pour la Blanchisserie de Molières-sur-Cèze.',
+    donnees: 'Les informations transmises via le formulaire de contact sont utilisées uniquement pour répondre à votre demande et ne sont ni cédées ni transmises à des tiers. Conformément au RGPD, vous disposez d\'un droit d\'accès, de rectification et de suppression de vos données en écrivant à contact@blanchisseriedemolieres.com.',
+    sources: 'Régime de TVA : <a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/" target="_blank" rel="noopener noreferrer">article 293 B du Code général des impôts</a> (Légifrance).',
+    misAJour: '29 septembre 2026'
+  };
+  var MENTIONS_META = [
+    { key: 'editeur', label: 'Éditeur du site', type: 'textarea' },
+    { key: 'siege', label: 'Siège social', type: 'text' },
+    { key: 'contact', label: 'Contact (téléphone / e-mail)', type: 'textarea' },
+    { key: 'immatriculation', label: 'Immatriculation (SIRET)', type: 'text' },
+    { key: 'fiscalite', label: 'Fiscalité (régime de TVA)', type: 'textarea' },
+    { key: 'hebergement', label: 'Hébergement', type: 'textarea' },
+    { key: 'propriete', label: 'Propriété intellectuelle', type: 'textarea' },
+    { key: 'credits', label: 'Crédits visuels', type: 'textarea' },
+    { key: 'donnees', label: 'Données personnelles (RGPD)', type: 'textarea' },
+    { key: 'sources', label: 'Sources', type: 'textarea' },
+    { key: 'misAJour', label: 'Date de dernière mise à jour', type: 'text' }
+  ];
   var uidCounter = 1;
   function uid(){ return 'id' + (uidCounter++) + '_' + Math.random().toString(36).slice(2,7); }
 
@@ -653,6 +714,14 @@
         : { title: it.title || '', mode: 'text', html: '', text: it.text || '' };
     });
   }
+  function toMentionsState(mentions){
+    var out = {};
+    MENTIONS_META.forEach(function(m){
+      var v = mentions && typeof mentions[m.key] === 'string' ? mentions[m.key] : '';
+      out[m.key] = v || MENTIONS_DEFAULTS[m.key] || '';
+    });
+    return out;
+  }
 
   // ======================================================
   // LOGIN
@@ -696,6 +765,8 @@
         state.gallery = toGalleryState(content.gallery);
         state.tarifs = toTarifsState(content.tarifs);
         state.articles = toArticlesState(content.articles);
+        state.mentions = toMentionsState(content.mentions);
+        mentionsRendered = false;
         clearDirty();
         hideLoading();
         renderAll();
@@ -722,7 +793,7 @@
       var tab = btn.getAttribute('data-tab');
       $all('.tab-panel').forEach(function(p){ p.classList.remove('is-active'); });
       $('#tab-' + tab).classList.add('is-active');
-      var titles = { galerie:'Galerie', tarifs:'Tarifs', articles:'Articles' };
+      var titles = { galerie:'Galerie', tarifs:'Tarifs', articles:'Articles', mentions:'Mentions légales' };
       $('#topbar-title').textContent = titles[tab];
     });
   });
@@ -734,6 +805,7 @@
     renderGalleryAdmin();
     renderTarifsAdmin();
     renderArticlesAdmin();
+    renderMentionsAdmin();
     $('#count-galerie').textContent = state.gallery.length;
     $('#count-tarifs').textContent = state.tarifs.reduce(function(n,g){ return n + g.rows.length; }, 0);
     $('#count-articles').textContent = state.articles.length;
@@ -1047,6 +1119,30 @@
   }
 
   // ======================================================
+  // MENTIONS LEGALES ADMIN
+  // ======================================================
+  var mentionsForm = $('#mentions-form');
+  var mentionsRendered = false;
+
+  function renderMentionsAdmin(){
+    if(mentionsRendered) return; // champs texte : pas besoin de re-render à chaque frappe
+    mentionsRendered = true;
+    mentionsForm.innerHTML = MENTIONS_META.map(function(m){
+      var value = escapeHtml(state.mentions[m.key] || '');
+      var inputHtml = m.type === 'textarea'
+        ? '<textarea data-mentions-key="' + m.key + '">' + value + '</textarea>'
+        : '<input type="text" data-mentions-key="' + m.key + '" value="' + value + '">';
+      return '<div class="field"><label>' + m.label + '</label>' + inputHtml + '</div>';
+    }).join('');
+    $all('[data-mentions-key]', mentionsForm).forEach(function(el){
+      el.addEventListener('input', function(){
+        state.mentions[el.getAttribute('data-mentions-key')] = el.value;
+        markDirty();
+      });
+    });
+  }
+
+  // ======================================================
   // MODAL helpers
   // ======================================================
   function openModal(){ $('#modal-backdrop').classList.add('is-visible'); }
@@ -1134,7 +1230,8 @@
           text: it.text || '',
           html: it.html || ''
         };
-      })
+      }),
+      mentions: state.mentions
     };
   }
 
@@ -1150,7 +1247,8 @@
     Promise.all([
       api('/api/admin/gallery', { method: 'PUT', body: JSON.stringify(payload.gallery) }),
       api('/api/admin/tarifs', { method: 'PUT', body: JSON.stringify(payload.tarifs) }),
-      api('/api/admin/articles', { method: 'PUT', body: JSON.stringify(payload.articles) })
+      api('/api/admin/articles', { method: 'PUT', body: JSON.stringify(payload.articles) }),
+      api('/api/admin/mentions', { method: 'PUT', body: JSON.stringify(payload.mentions) })
     ]).then(function(){
       clearDirty();
       hideLoading();

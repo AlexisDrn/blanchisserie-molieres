@@ -85,6 +85,33 @@ function buildTarifsHtml(groups) {
   }).join('\n\n');
 }
 
+// Valeurs par défaut : garantit que le site public reste inchangé si
+// content.json (déjà existant sur le disque persistant) ne contient pas
+// encore de bloc "mentions" (ajouté après coup) tant que l'admin n'a pas
+// encore publié depuis le nouvel onglet du back office.
+const MENTIONS_DEFAULTS = {
+  editeur: 'Blanchisserie de Molières-sur-Cèze, exploitée par DOURNIN.<br>Représentante : Patricia Dournin, directrice de la publication.',
+  siege: '14 rue Louis Serre, 30410 Molières-sur-Cèze, France.',
+  contact: 'Tél. : 06 58 73 18 09<br>E-mail : contact@blanchisseriedemolieres.com',
+  immatriculation: 'SIRET : 421 721 408 00035',
+  fiscalite: 'TVA non applicable, <a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/" target="_blank" rel="noopener noreferrer">art. 293 B du CGI</a>.',
+  hebergement: 'Render Services, Inc., 525 Brannan Street Ste 300, San Francisco, CA 94107, États-Unis — legal@render.com — +1 415-319-8186.',
+  propriete: 'L\'ensemble des textes, illustrations originales et éléments graphiques de ce site sont la propriété de la Blanchisserie de Molières-sur-Cèze, sauf mention contraire. Toute reproduction sans autorisation est interdite.',
+  credits: 'Les illustrations, pictogrammes et éléments graphiques présents sur ce site ont été réalisés ou sélectionnés pour la Blanchisserie de Molières-sur-Cèze.',
+  donnees: 'Les informations transmises via le formulaire de contact sont utilisées uniquement pour répondre à votre demande et ne sont ni cédées ni transmises à des tiers. Conformément au RGPD, vous disposez d\'un droit d\'accès, de rectification et de suppression de vos données en écrivant à contact@blanchisseriedemolieres.com.',
+  sources: 'Régime de TVA : <a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/" target="_blank" rel="noopener noreferrer">article 293 B du Code général des impôts</a> (Légifrance).',
+  misAJour: '29 septembre 2026'
+};
+const MENTIONS_FIELDS = ['editeur', 'siege', 'contact', 'immatriculation', 'fiscalite', 'hebergement', 'propriete', 'credits', 'donnees', 'sources', 'misAJour'];
+
+function mergeMentions(mentions) {
+  const out = Object.assign({}, MENTIONS_DEFAULTS);
+  MENTIONS_FIELDS.forEach(k => {
+    if (mentions && typeof mentions[k] === 'string' && mentions[k].trim()) out[k] = mentions[k];
+  });
+  return out;
+}
+
 function buildArticlesStatement(items) {
   const parts = (items || []).map(it => {
     const titleJson = JSON.stringify(it.title || '');
@@ -102,6 +129,12 @@ function renderSite() {
   html = html.replace('__GALLERY_DATA_PLACEHOLDER__', buildGalleryLiteral(content.gallery));
   html = html.replace('__TARIFS_HTML_PLACEHOLDER__', buildTarifsHtml(content.tarifs));
   html = html.replace('__ARTICLES_DATA_PLACEHOLDER__', buildArticlesStatement(content.articles));
+  const mentions = mergeMentions(content.mentions);
+  MENTIONS_FIELDS.forEach(k => {
+    // $$ échappe le caractère spécial de remplacement de String.replace (au cas
+    // où un texte légal contiendrait un "$", ex. un prix en dollars).
+    html = html.replace('__MENTIONS_' + k.toUpperCase() + '__', String(mentions[k]).replace(/\$/g, '$$$$'));
+  });
   return html;
 }
 
@@ -213,6 +246,15 @@ function validateArticles(body) {
   return null;
 }
 
+function validateMentions(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Les mentions légales doivent être un objet.';
+  for (const k of Object.keys(body)) {
+    if (MENTIONS_FIELDS.indexOf(k) === -1) continue; // champs inconnus ignorés, pas bloquants
+    if (typeof body[k] !== 'string') return 'Le champ "' + k + '" doit être du texte.';
+  }
+  return null;
+}
+
 app.put('/api/admin/gallery', requireAuth, (req, res) => {
   const err = validateGallery(req.body);
   if (err) return res.status(400).json({ error: err });
@@ -234,6 +276,14 @@ app.put('/api/admin/articles', requireAuth, (req, res) => {
   if (err) return res.status(400).json({ error: err });
   const content = readContent();
   content.articles = req.body;
+  writeContent(content).then(() => res.json({ ok: true })).catch(e => res.status(500).json({ error: e.message }));
+});
+
+app.put('/api/admin/mentions', requireAuth, (req, res) => {
+  const err = validateMentions(req.body);
+  if (err) return res.status(400).json({ error: err });
+  const content = readContent();
+  content.mentions = mergeMentions(Object.assign({}, content.mentions, req.body));
   writeContent(content).then(() => res.json({ ok: true })).catch(e => res.status(500).json({ error: e.message }));
 });
 
