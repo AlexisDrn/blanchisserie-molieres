@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const nodemailer = require('nodemailer');
 
 // ============================================================
 // CONFIG
@@ -23,6 +24,48 @@ if (!ADMIN_PASSWORD) {
 }
 if (!SESSION_SECRET) {
   console.error('ERREUR: la variable d\'environnement SESSION_SECRET n\'est pas définie. Génère une valeur aléatoire longue et définis-la avant de déployer.');
+}
+
+// ---- Envoi du formulaire de contact (SMTP IONOS) ----
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.ionos.fr';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE
+  ? process.env.SMTP_SECURE === 'true'
+  : SMTP_PORT === 465; // 465 = SSL/TLS direct, 587 = STARTTLS
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+// Chez IONOS l'adresse "From" doit être la boîte authentifiée (SMTP_USER).
+// CONTACT_TO permet d'envoyer vers une autre adresse si besoin (sinon = SMTP_USER).
+const CONTACT_TO = process.env.CONTACT_TO || SMTP_USER;
+
+if (!SMTP_USER || !SMTP_PASS) {
+  console.error('ERREUR: SMTP_USER / SMTP_PASS ne sont pas définies. Le formulaire de contact ne pourra pas envoyer d\'e-mail tant que ces variables ne sont pas configurées (boîte mail IONOS).');
+}
+
+let mailTransporter = null;
+function getMailTransporter() {
+  if (!SMTP_USER || !SMTP_PASS) return null;
+  if (!mailTransporter) {
+    mailTransporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: { user: SMTP_USER, pass: SMTP_PASS }
+    });
+  }
+  return mailTransporter;
+}
+
+// Anti-spam très simple : limite le nombre d'envois par IP sur une fenêtre glissante.
+const CONTACT_RATE_LIMIT = 5; // envois max
+const CONTACT_RATE_WINDOW_MS = 15 * 60 * 1000; // par 15 minutes
+const contactRateMap = new Map();
+function isRateLimited(ip) {
+  const now = Date.now();
+  const hits = (contactRateMap.get(ip) || []).filter((t) => now - t < CONTACT_RATE_WINDOW_MS);
+  hits.push(now);
+  contactRateMap.set(ip, hits);
+  return hits.length > CONTACT_RATE_LIMIT;
 }
 
 // ============================================================
@@ -274,6 +317,64 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.get('/', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.send(renderSite());
+});
+
+// ---- Formulaire de contact ----
+function escapeHtmlMail(str) {
+  return String(str || '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+app.post('/api/contact', async (req, res) => {
+  const body = req.body || {};
+  // Piège à robots : champ caché normalement vide, rempli seulement par les bots.
+  if (body._honey) {
+    return res.json({ ok: true });
+  }
+
+  const name = String(body.name || '').trim().slice(0, 200);
+  const email = String(body.email || '').trim().slice(0, 200);
+  const phone = String(body.phone || '').trim().slice(0, 60);
+  const message = String(body.message || '').trim().slice(0, 5000);
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!name || !message || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'invalid_fields' });
+  }
+
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: 'rate_limited' });
+  }
+
+  const transporter = getMailTransporter();
+  if (!transporter) {
+    return res.status(500).json({ error: 'mail_not_configured' });
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"Site Blanchisserie" <${SMTP_USER}>`,
+      to: CONTACT_TO,
+      replyTo: `"${name.replace(/[\r\n"]/g, ' ')}" <${email}>`,
+      subject: 'Nouvelle demande — site Blanchisserie de Molières-sur-Cèze',
+      text:
+        'Nom : ' + name + '\n' +
+        'E-mail : ' + email + '\n' +
+        'Téléphone : ' + (phone || '(non renseigné)') + '\n\n' +
+        'Message :\n' + message,
+      html:
+        '<p><strong>Nom :</strong> ' + escapeHtmlMail(name) + '</p>' +
+        '<p><strong>E-mail :</strong> ' + escapeHtmlMail(email) + '</p>' +
+        '<p><strong>Téléphone :</strong> ' + escapeHtmlMail(phone || '(non renseigné)') + '</p>' +
+        '<p><strong>Message :</strong><br>' + escapeHtmlMail(message).replace(/\n/g, '<br>') + '</p>'
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur envoi e-mail contact:', err && err.message);
+    res.status(502).json({ error: 'send_failed' });
+  }
 });
 
 // ---- Auth ----
