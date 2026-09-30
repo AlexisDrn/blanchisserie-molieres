@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blanchisserie et pressing à Molières-sur-Cèze | Gard</title>
 <meta name="description" content="Blanchisserie de Molières-sur-Cèze : entretien du linge, pressing et aquanettoyage pour particuliers et professionnels du tourisme dans le Gard.">
-<link rel="canonical" href="https://blanchisserie-molieres.onrender.com/">
+<link rel="canonical" href="__CANONICAL_URL__">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Blanchisserie de Molières-sur-Cèze">
 <meta property="og:title" content="Blanchisserie et pressing à Molières-sur-Cèze | Gard">
 <meta property="og:description" content="Blanchisserie de Molières-sur-Cèze : entretien du linge, pressing et aquanettoyage pour particuliers et professionnels du tourisme dans le Gard.">
-<meta property="og:url" content="https://blanchisserie-molieres.onrender.com/">
-<meta property="og:image" content="https://blanchisserie-molieres.onrender.com/assets/og-image.jpg">
+<meta property="og:url" content="__CANONICAL_URL__">
+<meta property="og:image" content="https://blanchisseriedemolieres.com/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="fr_FR">
@@ -20,7 +20,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Blanchisserie et pressing à Molières-sur-Cèze | Gard">
 <meta name="twitter:description" content="Blanchisserie de Molières-sur-Cèze : entretien du linge, pressing et aquanettoyage pour particuliers et professionnels du tourisme dans le Gard.">
-<meta name="twitter:image" content="https://blanchisserie-molieres.onrender.com/assets/og-image.jpg">
+<meta name="twitter:image" content="https://blanchisseriedemolieres.com/assets/og-image.jpg">
 
 <script type="application/ld+json">
 {
@@ -30,8 +30,8 @@
     "Organization"
   ],
   "name": "Blanchisserie de Molières-sur-Cèze",
-  "image": "https://blanchisserie-molieres.onrender.com/assets/og-image.jpg",
-  "url": "https://blanchisserie-molieres.onrender.com/",
+  "image": "https://blanchisseriedemolieres.com/assets/og-image.jpg",
+  "url": "https://blanchisseriedemolieres.com/",
   "telephone": "+33658731809",
   "email": "contact@blanchisseriedemolieres.com",
   "priceRange": "€€",
@@ -2287,6 +2287,16 @@ __ARTICLES_DATA_PLACEHOLDER__
     var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.tabs__btn'));
     var navEls = Array.prototype.slice.call(document.querySelectorAll('[data-nav]'));
     var valid = panels.map(function(p){ return p.getAttribute('data-panel'); });
+    var PANEL_TO_PATH = {
+      accueil: '/',
+      prestations: '/prestations',
+      tarifs: '/tarif',
+      galerie: '/galerie',
+      'point-relais': '/point-relais',
+      apropos: '/a-propos',
+      articles: '/articles',
+      mentions: '/mentions-legales'
+    };
 
     var tabsList = document.getElementById('tabs');
     var indicator = null;
@@ -2323,7 +2333,7 @@ __ARTICLES_DATA_PLACEHOLDER__
       });
       moveIndicator(!!instantIndicator);
       if(updateHash !== false){
-        history.replaceState(null, '', '#' + name);
+        history.replaceState(null, '', PANEL_TO_PATH[name] || ('/' + name));
       }
       if(scroll !== false){
         document.getElementById('main').scrollIntoView({behavior:'smooth', block:'start'});
@@ -2337,6 +2347,9 @@ __ARTICLES_DATA_PLACEHOLDER__
         if(name){
           e.preventDefault();
           show(name, undefined, scrollTarget ? false : undefined);
+          if(name === 'contact'){
+            history.replaceState(null, '', '/contact');
+          }
           if(scrollTarget){
             var target = document.getElementById(scrollTarget);
             if(target){
@@ -2357,8 +2370,18 @@ __ARTICLES_DATA_PLACEHOLDER__
       moveIndicator(true);
     });
 
-    var initial = location.hash ? location.hash.replace('#','') : 'accueil';
+    var SERVER_INITIAL_PANEL = '__INITIAL_PANEL__';
+    var SERVER_INITIAL_SCROLL = '__INITIAL_SCROLL__';
+    var initial = location.hash ? location.hash.replace('#','') : (SERVER_INITIAL_PANEL || 'accueil');
     show(initial, false, false, true);
+    if(!location.hash && SERVER_INITIAL_SCROLL){
+      var serverScrollEl = document.getElementById(SERVER_INITIAL_SCROLL);
+      if(serverScrollEl){
+        requestAnimationFrame(function(){
+          serverScrollEl.scrollIntoView({behavior:'auto', block:'start'});
+        });
+      }
+    }
 
     document.getElementById('year').textContent = new Date().getFullYear();
 

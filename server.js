@@ -257,7 +257,13 @@ function buildArticlesStatement(items) {
   return '    var articlesData = [\n' + parts.join(',\n') + '\n    ];';
 }
 
-function renderSite() {
+// URL de base du site public — utilisée pour générer les balises canonical/og:url
+// dynamiquement selon la page servie. Modifiable via variable d'environnement si
+// le domaine change à nouveau.
+const SITE_ORIGIN = (process.env.SITE_ORIGIN || 'https://blanchisseriedemolieres.com').replace(/\/$/, '');
+
+function renderSite(options) {
+  options = options || {};
   const content = readContent();
   let html = TEMPLATE_HTML;
   html = html.replace('__GALLERY_DATA_PLACEHOLDER__', buildGalleryLiteral(content.gallery));
@@ -272,6 +278,10 @@ function renderSite() {
   const horaires = mergeHoraires(content.horaires);
   html = html.replace('__HOURS_TABLE_ROWS__', buildHoursTableRows(horaires).replace(/\$/g, '$$$$'));
   html = html.replace('__OPENING_HOURS_SPEC_JSON__', buildOpeningHoursJsonLd(horaires).replace(/\$/g, '$$$$'));
+  const canonicalUrl = SITE_ORIGIN + (options.canonicalPath || '/');
+  html = html.replace(/__CANONICAL_URL__/g, canonicalUrl.replace(/\$/g, '$$$$'));
+  html = html.replace('__INITIAL_PANEL__', String(options.initialPanel || '').replace(/\$/g, '$$$$'));
+  html = html.replace('__INITIAL_SCROLL__', String(options.initialScroll || '').replace(/\$/g, '$$$$'));
   return html;
 }
 
@@ -317,6 +327,38 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.get('/', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.send(renderSite());
+});
+
+// ---- Pages "propres" par section (vraies URLs indexables par Google) ----
+// Le site est une page unique (SPA) : chaque route ci-dessous sert le même
+// document, avec le bon panneau déjà affiché et une balise canonical dédiée.
+// Certaines routes reprennent volontairement les anciennes URLs déjà indexées
+// (ex. /tarif, /a-propos) pour préserver leur référencement lors de la
+// migration ; les variantes (ex. /tarifs, /apropos) restent accessibles mais
+// déclarent la version historique comme canonique pour éviter le contenu dupliqué.
+const CLEAN_ROUTES = {
+  '/prestations':      { panel: 'prestations', canonical: '/prestations' },
+  '/tarif':            { panel: 'tarifs',       canonical: '/tarif' },
+  '/tarifs':           { panel: 'tarifs',       canonical: '/tarif' },
+  '/galerie':          { panel: 'galerie',      canonical: '/galerie' },
+  '/point-relais':     { panel: 'point-relais', canonical: '/point-relais' },
+  '/a-propos':         { panel: 'apropos',      canonical: '/a-propos' },
+  '/apropos':          { panel: 'apropos',      canonical: '/a-propos' },
+  '/articles':         { panel: 'articles',     canonical: '/articles' },
+  '/mentions-legales': { panel: 'mentions',     canonical: '/mentions-legales' },
+  '/mentions':         { panel: 'mentions',     canonical: '/mentions-legales' },
+  '/contact':          { panel: 'accueil', scroll: 'section-contact', canonical: '/contact' }
+};
+Object.keys(CLEAN_ROUTES).forEach((route) => {
+  const cfg = CLEAN_ROUTES[route];
+  app.get(route, (req, res) => {
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderSite({
+      initialPanel: cfg.panel,
+      initialScroll: cfg.scroll || '',
+      canonicalPath: cfg.canonical
+    }));
+  });
 });
 
 // ---- Formulaire de contact ----
