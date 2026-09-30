@@ -239,5 +239,76 @@
       "html": "",
       "text": "Un costume, une robe de cérémonie ou une pièce ancienne méritent une attention différente de celle réservée au linge du quotidien. Ces vêtements sont souvent composés de matières plus fragiles - soie, velours, lainages fins - et leur structure interne (doublure, entoilage) peut être sensible à un nettoyage inadapté. Entre deux utilisations, il est conseillé de les suspendre sur un cintre large et rembourré plutôt qu'un cintre fin, et de les protéger de la poussière avec une housse en tissu respirant plutôt qu'en plastique, qui retient l'humidité. Il n'est pas nécessaire de nettoyer une pièce de cérémonie après chaque port&nbsp;: un nettoyage trop fréquent use la matière autant qu'il l'entretient. En revanche, avant un rangement prolongé ou en cas de tache visible, un examen par un professionnel permet de déterminer le traitement le plus adapté à la matière et à la doublure, sans risquer d'endommager la pièce."
     }
-  ]
+  ],
+  "mentions": {
+    "editeur": "Blanchisserie de Molières-sur-Cèze, exploitée par DOURNIN.<br>Représentante : Patricia Dournin, directrice de la publication.",
+    "siege": "14 rue Louis Serre, 30410 Molières-sur-Cèze, France.",
+    "contact": "Tél. : 06 58 73 18 09<br>E-mail : contact@blanchisseriedemolieres.com",
+    "immatriculation": "SIRET : 421 721 408 00035",
+    "fiscalite": "TVA non applicable, <a href=\"https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/\" target=\"_blank\" rel=\"noopener noreferrer\">art. 293 B du CGI</a>.",
+    "hebergement": "Render Services, Inc., 525 Brannan Street Ste 300, San Francisco, CA 94107, États-Unis — legal@render.com — +1 415-319-8186.",
+    "propriete": "L'ensemble des textes, illustrations originales et éléments graphiques de ce site sont la propriété de la Blanchisserie de Molières-sur-Cèze, sauf mention contraire. Toute reproduction sans autorisation est interdite.",
+    "credits": "Les illustrations, pictogrammes et éléments graphiques présents sur ce site ont été réalisés ou sélectionnés pour la Blanchisserie de Molières-sur-Cèze.",
+    "donnees": "Les informations transmises via le formulaire de contact sont utilisées uniquement pour répondre à votre demande et ne sont ni cédées ni transmises à des tiers. Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de suppression de vos données en écrivant à contact@blanchisseriedemolieres.com.",
+    "sources": "Régime de TVA : <a href=\"https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048826700/\" target=\"_blank\" rel=\"noopener noreferrer\">article 293 B du Code général des impôts</a> (Légifrance).",
+    "misAJour": "29 septembre 2026"
+  },
+  "horaires": {
+    "lundi": {
+      "ferme": false,
+      "matinDebut": "09:00",
+      "matinFin": "12:00",
+      "apresMidiDebut": "14:00",
+      "apresMidiFin": "18:00",
+      "note": ""
+    },
+    "mardi": {
+      "ferme": false,
+      "matinDebut": "09:00",
+      "matinFin": "12:00",
+      "apresMidiDebut": "14:00",
+      "apresMidiFin": "18:00",
+      "note": ""
+    },
+    "mercredi": {
+      "ferme": false,
+      "matinDebut": "09:00",
+      "matinFin": "12:00",
+      "apresMidiDebut": "14:00",
+      "apresMidiFin": "18:00",
+      "note": ""
+    },
+    "jeudi": {
+      "ferme": true,
+      "matinDebut": "",
+      "matinFin": "",
+      "apresMidiDebut": "",
+      "apresMidiFin": "",
+      "note": ""
+    },
+    "vendredi": {
+      "ferme": false,
+      "matinDebut": "09:00",
+      "matinFin": "12:00",
+      "apresMidiDebut": "14:00",
+      "apresMidiFin": "18:00",
+      "note": ""
+    },
+    "samedi": {
+      "ferme": false,
+      "matinDebut": "09:00",
+      "matinFin": "11:00",
+      "apresMidiDebut": "",
+      "apresMidiFin": "",
+      "note": "15 mai – 15 sept. uniquement"
+    },
+    "dimanche": {
+      "ferme": true,
+      "matinDebut": "",
+      "matinFin": "",
+      "apresMidiDebut": "",
+      "apresMidiFin": "",
+      "note": ""
+    }
+  }
 }

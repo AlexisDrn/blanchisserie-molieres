@@ -75,6 +75,7 @@
   .field input[type="password"],
   .field input[type="text"],
   .field input[type="number"],
+  .field input[type="time"],
   .field textarea{
     width:100%;
     padding:0.75rem 0.9rem;
@@ -395,6 +396,29 @@
   .mentions-form .field input[type="text"],
   .mentions-form .field textarea{background:var(--cream);}
 
+  /* ---------- Horaires ---------- */
+  .horaires-form{display:flex; flex-direction:column; gap:0.9rem; max-width:52rem;}
+  .hday{
+    background:var(--white);
+    border:1px solid var(--line-soft);
+    border-radius:var(--radius-md);
+    box-shadow:var(--shadow-card);
+    padding:1.1rem 1.3rem 1.3rem;
+  }
+  .hday__head{display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:0.9rem;}
+  .hday__name{font-weight:700; font-size:1rem;}
+  .hday__closed{display:flex; align-items:center; gap:0.5rem; font-size:0.86rem; color:var(--ink-soft); cursor:pointer; user-select:none;}
+  .hday__closed input[type="checkbox"]{width:1.05rem; height:1.05rem; accent-color:var(--rose-deep); cursor:pointer;}
+  .hday__body{display:flex; flex-direction:column; gap:0.9rem; transition:opacity 0.15s ease;}
+  .hday__body.is-disabled{opacity:0.4; pointer-events:none;}
+  .hday__slots{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:0.8rem;}
+  .hday__slots .field{margin-bottom:0;}
+  .hday__slots .field label{font-size:0.72rem;}
+  .hday__note .field{margin-bottom:0;}
+  @media (max-width:640px){
+    .hday__slots{grid-template-columns:repeat(2, minmax(0,1fr));}
+  }
+
   /* ---------- Modal ---------- */
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(58,50,88,0.42); backdrop-filter:blur(3px);
@@ -520,6 +544,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6M9 16h6M9 8h1"/><path d="M7 3h8l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
           <span>Mentions légales</span>
         </button>
+        <button class="nav-btn" data-tab="horaires">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          <span>Horaires</span>
+        </button>
       </nav>
       <div class="sidebar__footer">
         <button class="btn btn-publish" id="publish-btn">
@@ -580,6 +608,15 @@
           </div>
           <div class="mentions-form" id="mentions-form"></div>
         </section>
+
+        <!-- HORAIRES -->
+        <section class="tab-panel" id="tab-horaires">
+          <div class="panel-intro">
+            <h3>Horaires d'ouverture</h3>
+            <p>Modifiez les horaires affichés dans l'onglet Contact du site. Cochez « Fermé toute la journée » pour un jour de fermeture exceptionnelle ou habituelle — les horaires saisis pour ce jour sont alors ignorés mais restent enregistrés si vous voulez les rétablir plus tard.</p>
+          </div>
+          <div class="horaires-form" id="horaires-form"></div>
+        </section>
       </div>
     </main>
   </div>
@@ -607,6 +644,7 @@
     tarifs: [],
     articles: [],
     mentions: {},
+    horaires: {},
     dirty: false
   };
 
@@ -639,6 +677,24 @@
     { key: 'sources', label: 'Sources', type: 'textarea' },
     { key: 'misAJour', label: 'Date de dernière mise à jour', type: 'text' }
   ];
+  // Reprend exactement les valeurs par défaut de server.js (HORAIRES_DEFAULTS) :
+  // sert à pré-remplir le formulaire tant que l'admin n'a jamais encore publié
+  // depuis cet onglet (content.json existant sans bloc "horaires").
+  var HORAIRES_JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+  var HORAIRES_LABELS = {
+    lundi: 'Lundi', mardi: 'Mardi', mercredi: 'Mercredi', jeudi: 'Jeudi',
+    vendredi: 'Vendredi', samedi: 'Samedi', dimanche: 'Dimanche'
+  };
+  var HORAIRES_DEFAULTS = {
+    lundi:    { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+    mardi:    { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+    mercredi: { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+    jeudi:    { ferme: true,  matinDebut: '', matinFin: '', apresMidiDebut: '', apresMidiFin: '', note: '' },
+    vendredi: { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+    samedi:   { ferme: false, matinDebut: '09:00', matinFin: '11:00', apresMidiDebut: '', apresMidiFin: '', note: '15 mai – 15 sept. uniquement' },
+    dimanche: { ferme: true,  matinDebut: '', matinFin: '', apresMidiDebut: '', apresMidiFin: '', note: '' }
+  };
+
   var uidCounter = 1;
   function uid(){ return 'id' + (uidCounter++) + '_' + Math.random().toString(36).slice(2,7); }
 
@@ -722,6 +778,22 @@
     });
     return out;
   }
+  function toHorairesState(horaires){
+    var out = {};
+    HORAIRES_JOURS.forEach(function(j){
+      var d = (horaires && typeof horaires[j] === 'object' && horaires[j]) || {};
+      var def = HORAIRES_DEFAULTS[j];
+      out[j] = {
+        ferme: typeof d.ferme === 'boolean' ? d.ferme : def.ferme,
+        matinDebut: typeof d.matinDebut === 'string' && d.matinDebut ? d.matinDebut : def.matinDebut,
+        matinFin: typeof d.matinFin === 'string' && d.matinFin ? d.matinFin : def.matinFin,
+        apresMidiDebut: typeof d.apresMidiDebut === 'string' && d.apresMidiDebut ? d.apresMidiDebut : def.apresMidiDebut,
+        apresMidiFin: typeof d.apresMidiFin === 'string' && d.apresMidiFin ? d.apresMidiFin : def.apresMidiFin,
+        note: typeof d.note === 'string' ? d.note : def.note
+      };
+    });
+    return out;
+  }
 
   // ======================================================
   // LOGIN
@@ -767,6 +839,8 @@
         state.articles = toArticlesState(content.articles);
         state.mentions = toMentionsState(content.mentions);
         mentionsRendered = false;
+        state.horaires = toHorairesState(content.horaires);
+        horairesRendered = false;
         clearDirty();
         hideLoading();
         renderAll();
@@ -793,7 +867,7 @@
       var tab = btn.getAttribute('data-tab');
       $all('.tab-panel').forEach(function(p){ p.classList.remove('is-active'); });
       $('#tab-' + tab).classList.add('is-active');
-      var titles = { galerie:'Galerie', tarifs:'Tarifs', articles:'Articles', mentions:'Mentions légales' };
+      var titles = { galerie:'Galerie', tarifs:'Tarifs', articles:'Articles', mentions:'Mentions légales', horaires:'Horaires' };
       $('#topbar-title').textContent = titles[tab];
     });
   });
@@ -806,6 +880,7 @@
     renderTarifsAdmin();
     renderArticlesAdmin();
     renderMentionsAdmin();
+    renderHorairesAdmin();
     $('#count-galerie').textContent = state.gallery.length;
     $('#count-tarifs').textContent = state.tarifs.reduce(function(n,g){ return n + g.rows.length; }, 0);
     $('#count-articles').textContent = state.articles.length;
@@ -1143,6 +1218,55 @@
   }
 
   // ======================================================
+  // HORAIRES ADMIN
+  // ======================================================
+  var horairesForm = $('#horaires-form');
+  var horairesRendered = false;
+
+  function renderHorairesAdmin(){
+    if(horairesRendered) return; // pas besoin de re-render à chaque frappe/clic
+    horairesRendered = true;
+    horairesForm.innerHTML = HORAIRES_JOURS.map(function(j){
+      var d = state.horaires[j];
+      var label = HORAIRES_LABELS[j];
+      var disabledClass = d.ferme ? ' is-disabled' : '';
+      var checkedAttr = d.ferme ? ' checked' : '';
+      return '<div class="hday" data-hday="' + j + '">'
+        + '<div class="hday__head">'
+        +   '<span class="hday__name">' + label + '</span>'
+        +   '<label class="hday__closed"><input type="checkbox" data-hday-closed="' + j + '"' + checkedAttr + '> Fermé toute la journée</label>'
+        + '</div>'
+        + '<div class="hday__body' + disabledClass + '">'
+        +   '<div class="hday__slots">'
+        +     '<div class="field"><label>Matin — début</label><input type="time" data-hday-field="' + j + '.matinDebut" value="' + escapeHtml(d.matinDebut) + '"></div>'
+        +     '<div class="field"><label>Matin — fin</label><input type="time" data-hday-field="' + j + '.matinFin" value="' + escapeHtml(d.matinFin) + '"></div>'
+        +     '<div class="field"><label>Après-midi — début</label><input type="time" data-hday-field="' + j + '.apresMidiDebut" value="' + escapeHtml(d.apresMidiDebut) + '"></div>'
+        +     '<div class="field"><label>Après-midi — fin</label><input type="time" data-hday-field="' + j + '.apresMidiFin" value="' + escapeHtml(d.apresMidiFin) + '"></div>'
+        +   '</div>'
+        +   '<div class="hday__note"><div class="field"><label>Note (optionnel, ex. période saisonnière)</label><input type="text" data-hday-field="' + j + '.note" value="' + escapeHtml(d.note) + '" placeholder="Ex. 15 mai – 15 sept. uniquement"></div></div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    $all('[data-hday-field]', horairesForm).forEach(function(el){
+      el.addEventListener('input', function(){
+        var parts = el.getAttribute('data-hday-field').split('.');
+        state.horaires[parts[0]][parts[1]] = el.value;
+        markDirty();
+      });
+    });
+    $all('[data-hday-closed]', horairesForm).forEach(function(el){
+      el.addEventListener('change', function(){
+        var j = el.getAttribute('data-hday-closed');
+        state.horaires[j].ferme = el.checked;
+        var body = el.closest('.hday').querySelector('.hday__body');
+        body.classList.toggle('is-disabled', el.checked);
+        markDirty();
+      });
+    });
+  }
+
+  // ======================================================
   // MODAL helpers
   // ======================================================
   function openModal(){ $('#modal-backdrop').classList.add('is-visible'); }
@@ -1231,7 +1355,8 @@
           html: it.html || ''
         };
       }),
-      mentions: state.mentions
+      mentions: state.mentions,
+      horaires: state.horaires
     };
   }
 
@@ -1248,7 +1373,8 @@
       api('/api/admin/gallery', { method: 'PUT', body: JSON.stringify(payload.gallery) }),
       api('/api/admin/tarifs', { method: 'PUT', body: JSON.stringify(payload.tarifs) }),
       api('/api/admin/articles', { method: 'PUT', body: JSON.stringify(payload.articles) }),
-      api('/api/admin/mentions', { method: 'PUT', body: JSON.stringify(payload.mentions) })
+      api('/api/admin/mentions', { method: 'PUT', body: JSON.stringify(payload.mentions) }),
+      api('/api/admin/horaires', { method: 'PUT', body: JSON.stringify(payload.horaires) })
     ]).then(function(){
       clearDirty();
       hideLoading();

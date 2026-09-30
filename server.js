@@ -112,6 +112,97 @@ function mergeMentions(mentions) {
   return out;
 }
 
+// ============================================================
+// HORAIRES D'OUVERTURE (éditables depuis le back office)
+// ============================================================
+const HORAIRES_JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const HORAIRES_LABELS = {
+  lundi: 'Lundi', mardi: 'Mardi', mercredi: 'Mercredi', jeudi: 'Jeudi',
+  vendredi: 'Vendredi', samedi: 'Samedi', dimanche: 'Dimanche'
+};
+const HORAIRES_JOURS_EN = {
+  lundi: 'Monday', mardi: 'Tuesday', mercredi: 'Wednesday', jeudi: 'Thursday',
+  vendredi: 'Friday', samedi: 'Saturday', dimanche: 'Sunday'
+};
+
+// Valeurs par défaut : reprennent les horaires historiques du site, et
+// servent de repli tant que l'admin n'a pas encore publié depuis le
+// nouvel onglet "Horaires" du back office.
+const HORAIRES_DEFAULTS = {
+  lundi:    { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+  mardi:    { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+  mercredi: { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+  jeudi:    { ferme: true,  matinDebut: '', matinFin: '', apresMidiDebut: '', apresMidiFin: '', note: '' },
+  vendredi: { ferme: false, matinDebut: '09:00', matinFin: '12:00', apresMidiDebut: '14:00', apresMidiFin: '18:00', note: '' },
+  samedi:   { ferme: false, matinDebut: '09:00', matinFin: '11:00', apresMidiDebut: '', apresMidiFin: '', note: '15 mai – 15 sept. uniquement' },
+  dimanche: { ferme: true,  matinDebut: '', matinFin: '', apresMidiDebut: '', apresMidiFin: '', note: '' }
+};
+
+function mergeHoraires(horaires) {
+  const out = {};
+  HORAIRES_JOURS.forEach(j => {
+    const d = (horaires && typeof horaires[j] === 'object' && horaires[j]) || {};
+    const def = HORAIRES_DEFAULTS[j];
+    out[j] = {
+      ferme: typeof d.ferme === 'boolean' ? d.ferme : def.ferme,
+      matinDebut: typeof d.matinDebut === 'string' ? d.matinDebut : def.matinDebut,
+      matinFin: typeof d.matinFin === 'string' ? d.matinFin : def.matinFin,
+      apresMidiDebut: typeof d.apresMidiDebut === 'string' ? d.apresMidiDebut : def.apresMidiDebut,
+      apresMidiFin: typeof d.apresMidiFin === 'string' ? d.apresMidiFin : def.apresMidiFin,
+      note: typeof d.note === 'string' ? d.note : def.note
+    };
+  });
+  return out;
+}
+
+function formatHeure(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return '';
+  const parts = hhmm.split(':');
+  const h = parseInt(parts[0], 10);
+  if (isNaN(h)) return '';
+  const m = parts[1] || '00';
+  return m === '00' ? (h + 'h') : (h + 'h' + m);
+}
+
+function escapeHtmlServer(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildHoursTableRows(horaires) {
+  return HORAIRES_JOURS.map(j => {
+    const d = horaires[j];
+    const label = HORAIRES_LABELS[j];
+    if (d.ferme) {
+      return '<tr><td>' + label + '</td><td>Fermé</td></tr>';
+    }
+    const slots = [];
+    const m1 = formatHeure(d.matinDebut), m2 = formatHeure(d.matinFin);
+    if (m1 && m2) slots.push(m1 + ' – ' + m2);
+    const a1 = formatHeure(d.apresMidiDebut), a2 = formatHeure(d.apresMidiFin);
+    if (a1 && a2) slots.push(a1 + ' – ' + a2);
+    const text = slots.length ? slots.join(' / ') : 'Horaires non renseignés';
+    const noteHtml = d.note ? ('<br><span class="hours-note">' + escapeHtmlServer(d.note) + '</span>') : '';
+    return '<tr><td>' + label + '</td><td>' + text + noteHtml + '</td></tr>';
+  }).join('\n              ');
+}
+
+function buildOpeningHoursJsonLd(horaires) {
+  const specs = [];
+  HORAIRES_JOURS.forEach(j => {
+    const d = horaires[j];
+    if (d.ferme) return;
+    const dayEn = HORAIRES_JOURS_EN[j];
+    if (d.matinDebut && d.matinFin) {
+      specs.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: [dayEn], opens: d.matinDebut, closes: d.matinFin });
+    }
+    if (d.apresMidiDebut && d.apresMidiFin) {
+      specs.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: [dayEn], opens: d.apresMidiDebut, closes: d.apresMidiFin });
+    }
+  });
+  return JSON.stringify(specs, null, 4);
+}
+
 function buildArticlesStatement(items) {
   const parts = (items || []).map(it => {
     const titleJson = JSON.stringify(it.title || '');
@@ -135,6 +226,9 @@ function renderSite() {
     // où un texte légal contiendrait un "$", ex. un prix en dollars).
     html = html.replace('__MENTIONS_' + k.toUpperCase() + '__', String(mentions[k]).replace(/\$/g, '$$$$'));
   });
+  const horaires = mergeHoraires(content.horaires);
+  html = html.replace('__HOURS_TABLE_ROWS__', buildHoursTableRows(horaires).replace(/\$/g, '$$$$'));
+  html = html.replace('__OPENING_HOURS_SPEC_JSON__', buildOpeningHoursJsonLd(horaires).replace(/\$/g, '$$$$'));
   return html;
 }
 
@@ -255,6 +349,24 @@ function validateMentions(body) {
   return null;
 }
 
+const HORAIRES_TIME_RE = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+function validateHoraires(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Les horaires doivent être un objet.';
+  for (const j of HORAIRES_JOURS) {
+    if (!(j in body)) continue; // jour manquant : on garde la valeur déjà enregistrée
+    const d = body[j];
+    if (typeof d !== 'object' || d === null || Array.isArray(d)) return 'Le jour "' + j + '" doit être un objet.';
+    if ('ferme' in d && typeof d.ferme !== 'boolean') return 'Le champ "ferme" du jour "' + j + '" doit être vrai/faux.';
+    for (const f of ['matinDebut', 'matinFin', 'apresMidiDebut', 'apresMidiFin']) {
+      if (!(f in d)) continue;
+      if (typeof d[f] !== 'string') return 'Le champ "' + f + '" du jour "' + j + '" doit être du texte.';
+      if (d[f] && !HORAIRES_TIME_RE.test(d[f])) return 'Le champ "' + f + '" du jour "' + j + '" doit être une heure valide (HH:MM).';
+    }
+    if ('note' in d && typeof d.note !== 'string') return 'Le champ "note" du jour "' + j + '" doit être du texte.';
+  }
+  return null;
+}
+
 app.put('/api/admin/gallery', requireAuth, (req, res) => {
   const err = validateGallery(req.body);
   if (err) return res.status(400).json({ error: err });
@@ -284,6 +396,18 @@ app.put('/api/admin/mentions', requireAuth, (req, res) => {
   if (err) return res.status(400).json({ error: err });
   const content = readContent();
   content.mentions = mergeMentions(Object.assign({}, content.mentions, req.body));
+  writeContent(content).then(() => res.json({ ok: true })).catch(e => res.status(500).json({ error: e.message }));
+});
+
+app.put('/api/admin/horaires', requireAuth, (req, res) => {
+  const err = validateHoraires(req.body);
+  if (err) return res.status(400).json({ error: err });
+  const content = readContent();
+  const next = {};
+  HORAIRES_JOURS.forEach(j => {
+    next[j] = Object.assign({}, content.horaires && content.horaires[j], req.body && req.body[j]);
+  });
+  content.horaires = mergeHoraires(next);
   writeContent(content).then(() => res.json({ ok: true })).catch(e => res.status(500).json({ error: e.message }));
 });
 
